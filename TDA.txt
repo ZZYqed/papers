@@ -1,0 +1,64 @@
+import pandas as pd
+
+# Load your dataset
+df = pd.read_csv('broker_inventory_features.csv', parse_dates=['Date'])
+
+# Sort by Date and StockID
+df = df.sort_values(by=['Date', 'StockID'])
+
+# Create indicator variables for missing inventory data
+for broker in ['Broker1', 'Broker2', 'Broker3', 'Broker4', 'Broker5', 'Broker6', 'Broker7']:
+    df[f'{broker}_missing'] = df[broker].isna().astype(int)
+
+# Impute missing values with zero or another specific value
+df.fillna(0, inplace=True)
+
+from sklearn.preprocessing import StandardScaler
+
+# Normalize features (excluding 'Date' and 'StockID')
+scaler = StandardScaler()
+df_normalized = pd.DataFrame(scaler.fit_transform(df.drop(columns=['Date', 'StockID'])), columns=df.columns[2:])
+
+# Add back 'Date' and 'StockID' for reference
+df_normalized['Date'] = df['Date']
+df_normalized['StockID'] = df['StockID']
+
+# Construct the point cloud from normalized data
+point_cloud = df_normalized.drop(columns=['Date', 'StockID']).values
+
+from ripser import ripser
+from persim import plot_diagrams
+
+# Compute persistent homology
+diagrams = ripser(point_cloud)['dgms']
+
+# Plot persistence diagrams
+plot_diagrams(diagrams, show=True)
+
+# Example of extracting the sum of lifespans of persistent features above a threshold
+persistent_features = []
+for dgm in diagrams:
+    for birth, death in dgm:
+        if death - birth > 0.1:  # Example threshold
+            persistent_features.append(death - birth)
+
+# Add the topological feature to your DataFrame
+df['TopologicalFeature1'] = np.sum(persistent_features)
+
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LinearRegression
+
+# Define features and target
+X = df_normalized.drop(columns=['Date', 'StockID'])
+y = df['StockReturn']
+
+# Split data
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+# Train a regression model
+model = LinearRegression()
+model.fit(X_train, y_train)
+
+# Evaluate the model
+print("Model R^2 score:", model.score(X_test, y_test))
+、
